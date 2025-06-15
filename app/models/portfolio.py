@@ -6,5 +6,3 @@ class Portfolio(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     fund_id: int = Field(foreign_key="fund.id")
     units: float
-    invested_amount: float
-    current_value: float = 0.0
