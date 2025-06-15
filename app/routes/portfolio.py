@@ -8,10 +8,36 @@ from app.services.rapidapi_client import get_fund_details_by_fund_code
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
-# @router.get("/{user_id}")
-# def get_portfolio(user_id: int, session: Session = Depends(get_session)):
-#     results = session.exec(select(Portfolio).where(Portfolio.user_id == user_id)).all()
-#     return results
+@router.get("/{user_id}")
+def get_portfolio_user(user_id: int, session: Session = Depends(get_session)):
+    latest_portfolio_details = {
+        "Current_Portfolio_Value": 0,
+        "Portfolio_Details": False
+    }
+    portfolio_records = session.exec(select(Fund.fund_name, Fund.fund_family, Portfolio.units, Fund.latest_nav).join(Fund).where(Portfolio.user_id == user_id)).all()
+    portfolio_details = []
+    total_value = 0
+    for portfolio_record in portfolio_records:
+        fund_name = portfolio_record[0]
+        fund_family_name = portfolio_record[1]
+        total_units = portfolio_record[2]
+        latest_nav = portfolio_record[3]
+
+        current_value = total_units * latest_nav
+        portfolio_dict = {
+            "Fund_Name": fund_name,
+            "Fund_Family_Name": fund_family_name,
+            "Total_Units": total_units,
+            "Current_Value":  current_value
+        }
+        portfolio_details.append(portfolio_dict)
+        total_value += current_value
+
+    latest_portfolio_details.update({
+        "Current_Portfolio_Value": total_value,
+        "Portfolio_Details": portfolio_details
+    })
+    return latest_portfolio_details
 
 @router.post("/buy-fund/{fund_code}/units/{units}/user/{user_id}")
 def post_fund_units_in_portfolio(fund_code: str, units: int, user_id: int, session: Session = Depends(get_session)):
