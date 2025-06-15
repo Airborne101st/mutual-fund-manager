@@ -6,4 +6,4 @@ class Fund(SQLModel, table=True):
     fund_code: str = Field(unique=True)
     fund_name: str
     fund_family: str
-    latest_nav: str
+    latest_nav: float
