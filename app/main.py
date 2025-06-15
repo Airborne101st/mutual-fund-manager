@@ -4,6 +4,7 @@ from app.routes import funds
 from app.routes import portfolio
 from sqlmodel import SQLModel
 from app.db.session import engine
+from app.services.scheduler import start_scheduler
 from app.models.user import User
 from app.models.fund import Fund
 from app.models.portfolio import Portfolio
@@ -16,3 +17,4 @@ app.include_router(auth.router)
 app.include_router(funds.router)
 app.include_router(portfolio.router)
 
+start_scheduler()
