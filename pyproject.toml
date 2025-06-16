@@ -1,0 +1,20 @@
+[project]
+name = "mutual-fund-manager"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.16.1",
+    "apscheduler>=3.11.0",
+    "bcrypt>=4.3.0",
+    "fastapi>=0.115.12",
+    "passlib>=1.7.4",
+    "psycopg2-binary>=2.9.10",
+    "pytest>=8.4.0",
+    "python-dotenv>=1.1.0",
+    "python-jose>=3.5.0",
+    "requests>=2.32.4",
+    "sqlmodel>=0.0.24",
+    "uvicorn>=0.34.3",
+]
