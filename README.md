@@ -81,7 +81,7 @@ CREATE DATABASE mutualfund;
 
 ---
 
-### 7. Start the development server
+### 6. Start the development server
 
 ```bash
 uvicorn app.main:app --reload
