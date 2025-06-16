@@ -115,7 +115,7 @@ mutual_fund_app/
 |
 ├── tests/               # End-to-end tests
 ├── pyproject.toml       # Project dependencies & metadata
-├── alembic.ini
+|
 └── README.md
 ```
 
