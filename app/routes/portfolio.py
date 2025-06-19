@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.portfolio import Portfolio
 from app.models.user import User
 from app.models.fund import Fund
@@ -11,16 +12,18 @@ from app.schemas.portfolio import FundPurchase
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 @router.get("/{user_id}")
-def get_portfolio_user(user_id: int, session: Session = Depends(get_session)):
-    user = session.get(User, user_id)
+async def get_portfolio_user(user_id: int, session: AsyncSession = Depends(get_session)):
+    user = await session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    portfolio_records = session.exec(
-        select(
-            Fund.fund_name, Fund.fund_family, Portfolio.units, Fund.latest_nav
-        ).join(Fund).where(Portfolio.user_id == user_id)
-    ).all()
+    statement = (
+        select(Fund.fund_name, Fund.fund_family, Portfolio.units, Fund.latest_nav)
+        .join(Fund)
+        .where(Portfolio.user_id == user_id)
+    )
+    result = await session.exec(statement)
+    portfolio_records = result.all()
 
     if not portfolio_records:
         return {
@@ -46,34 +49,43 @@ def get_portfolio_user(user_id: int, session: Session = Depends(get_session)):
         "Portfolio_Details": portfolio_details
     }
 
-
 @router.post("/buy-fund")
-def post_fund_units_in_portfolio(purchase: FundPurchase, session: Session = Depends(get_session)):
-    user = session.get(User, purchase.user_id)
+async def post_fund_units_in_portfolio(purchase: FundPurchase, session: AsyncSession = Depends(get_session)):
+    user = await session.get(User, purchase.user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Check for existing fund in portfolio
-    statement = select(Portfolio).join(Fund).join(User).where(Fund.fund_code == purchase.fund_code).where(User.id == purchase.user_id)
-    existing_fund_in_portfolio = session.exec(statement).first()
+    statement = (
+        select(Portfolio)
+        .join(Fund)
+        .join(User)
+        .where(Fund.fund_code == purchase.fund_code)
+        .where(User.id == purchase.user_id)
+    )
+    result = await session.exec(statement)
+    existing_fund_in_portfolio = result.first()
 
     if existing_fund_in_portfolio:
         existing_fund_in_portfolio.units += purchase.units
-        session.commit()
-        fund = session.get(Fund, existing_fund_in_portfolio.fund_id)
+        session.add(existing_fund_in_portfolio)
+        await session.commit()
+        fund = await session.get(Fund, existing_fund_in_portfolio.fund_id)
         return {"message": f"Updated {purchase.units} units in {fund.fund_name}"}
 
-    # Check for Fund in Fund Model
-    existing_fund = session.exec(select(Fund).where(Fund.fund_code == purchase.fund_code)).first()
+    # Check if fund already exists
+    result = await session.exec(select(Fund).where(Fund.fund_code == purchase.fund_code))
+    existing_fund = result.first()
+
     if existing_fund:
         new_portfolio_fund = Portfolio(user_id=purchase.user_id, fund_id=existing_fund.id, units=purchase.units)
         session.add(new_portfolio_fund)
-        session.commit()
+        await session.commit()
         return {"message": f"Added {purchase.units} units to {existing_fund.fund_name}"}
 
     # Fetch from RapidAPI
     try:
-        new_fund_details = get_fund_details_by_fund_code(purchase.fund_code)
+        new_fund_details = await get_fund_details_by_fund_code(purchase.fund_code)
         if not new_fund_details or not isinstance(new_fund_details, list):
             raise ValueError("Invalid response from fund API")
     except Exception as e:
@@ -84,7 +96,7 @@ def post_fund_units_in_portfolio(purchase: FundPurchase, session: Session = Depe
     fund_family = fund_info.get("Mutual_Fund_Family")
     latest_nav = float(fund_info.get("Net_Asset_Value", 0))
 
-    # Create new fund in model Fund
+    # Create new fund
     new_fund = Fund(
         fund_code=purchase.fund_code,
         fund_name=fund_name,
@@ -92,15 +104,12 @@ def post_fund_units_in_portfolio(purchase: FundPurchase, session: Session = Depe
         latest_nav=latest_nav
     )
     session.add(new_fund)
-    session.commit()
-    session.refresh(new_fund)
+    await session.commit()
+    await session.refresh(new_fund)
 
-    # Create New Portfolio record
+    # Create new portfolio record
     new_portfolio_fund = Portfolio(user_id=purchase.user_id, fund_id=new_fund.id, units=purchase.units)
     session.add(new_portfolio_fund)
-    session.commit()
+    await session.commit()
 
     return {"message": f"Added {purchase.units} units to {fund_name}"}
-
-
-
