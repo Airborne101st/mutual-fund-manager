@@ -15,6 +15,7 @@ This is a backend service for a mutual fund brokerage application built using **
 - **SQLModel** - ORM
 - **PostgreSQL** - Database
 - **APScheduler** - Scheduled tasks
+- **Asyncio** - For Asynchronous implementaion
 - **uv** - Fast dependency manager & virtual environment handler
 
 ---
@@ -58,7 +59,7 @@ Create a `.env` file in the project root and add env variables:
 Added a .env.example for reference
 
 ```ini
-DATABASE_URL=postgresql://postgres:password@localhost/mutualfund
+DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/mutualfund
 RAPIDAPI_KEY=your_rapid_api_key
 RAPIDAPI_HOST=latest-mutual-fund-nav.p.rapidapi.com
 ```
@@ -96,7 +97,9 @@ Visit the docs at: [http://localhost:8000/docs](http://localhost:8000/docs)
 To run tests:
 
 ```bash
-pytest tests
+**Important:**
+1. In main.py comment start_scheduler()
+2. RUN pytest tests
 ```
 
 ---
@@ -111,6 +114,7 @@ mutual_fund_app/
 │   ├── routes/          # FastAPI route handlers
 │   ├── services/        # Scheduler & API client
 │   ├── utils/           # Utility functions (e.g. hashing)
+|   └── schemas/         # Pydantic schemas for models
 │   └── main.py          # FastAPI app entrypoint
 |
 ├── tests/               # End-to-end tests
@@ -128,7 +132,11 @@ The app uses `APScheduler` to fetch the latest NAV for all user portfolios **onc
 You can customize the frequency in `app/services/scheduler.py`:
 
 ```python
-scheduler.add_job(update_portfolios, "interval", days=1)
+def start_scheduler():
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(update_fund_navs, IntervalTrigger(days=1))
+    scheduler.start()
+    _logger.info("Scheduler started.")
 ```
 
 ---
