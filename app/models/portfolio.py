@@ -6,3 +6,4 @@ class Portfolio(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     fund_id: int = Field(foreign_key="fund.id")
     units: float
+    amount: float
