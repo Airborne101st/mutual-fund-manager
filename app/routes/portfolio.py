@@ -18,7 +18,7 @@ async def get_portfolio_user(user_id: int, session: AsyncSession = Depends(get_s
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     statement = (
-        select(Fund.fund_name, Fund.fund_family, Portfolio.units, Fund.latest_nav)
+        select(Fund.fund_name, Fund.fund_family, Portfolio.units, Fund.latest_nav, Portfolio.amount)
         .join(Fund)
         .where(Portfolio.user_id == user_id)
     )
@@ -34,15 +34,14 @@ async def get_portfolio_user(user_id: int, session: AsyncSession = Depends(get_s
 
     portfolio_details = []
     total_value = 0
-    for fund_name, fund_family, units, latest_nav in portfolio_records:
-        current_value = units * latest_nav
+    for fund_name, fund_family, units, latest_nav, amount in portfolio_records:
         portfolio_details.append({
             "Fund_Name": fund_name,
             "Fund_Family_Name": fund_family,
             "Total_Units": units,
-            "Current_Value": current_value
+            "Current_Value": amount
         })
-        total_value += current_value
+        total_value += amount
 
     return {
         "Current_Portfolio_Value": round(total_value, 2),
@@ -67,21 +66,24 @@ async def post_fund_units_in_portfolio(purchase: FundPurchase, session: AsyncSes
     existing_fund_in_portfolio = result.first()
 
     if existing_fund_in_portfolio:
-        existing_fund_in_portfolio.units += purchase.units
+        fund = await session.get(Fund, existing_fund_in_portfolio.fund_id)
+        new_units_added = purchase.amount/fund.latest_nav
+        existing_fund_in_portfolio.units += new_units_added
+        existing_fund_in_portfolio.amount = existing_fund_in_portfolio.units * fund.latest_nav
         session.add(existing_fund_in_portfolio)
         await session.commit()
-        fund = await session.get(Fund, existing_fund_in_portfolio.fund_id)
-        return {"message": f"Updated {purchase.units} units in {fund.fund_name}"}
+        return {"message": f"Updated {new_units_added} units in {fund.fund_name}"}
 
     # Check if fund already exists
     result = await session.exec(select(Fund).where(Fund.fund_code == purchase.fund_code))
     existing_fund = result.first()
 
     if existing_fund:
-        new_portfolio_fund = Portfolio(user_id=purchase.user_id, fund_id=existing_fund.id, units=purchase.units)
+        new_portfolio_fund = Portfolio(user_id=purchase.user_id, fund_id=existing_fund.id, amount=purchase.amount)
+        new_portfolio_fund.units = purchase.amount / existing_fund.latest_nav
         session.add(new_portfolio_fund)
         await session.commit()
-        return {"message": f"Added {purchase.units} units to {existing_fund.fund_name}"}
+        return {"message": f"Added {new_portfolio_fund.units} units to {existing_fund.fund_name}"}
 
     # Fetch from RapidAPI
     try:
@@ -108,8 +110,9 @@ async def post_fund_units_in_portfolio(purchase: FundPurchase, session: AsyncSes
     await session.refresh(new_fund)
 
     # Create new portfolio record
-    new_portfolio_fund = Portfolio(user_id=purchase.user_id, fund_id=new_fund.id, units=purchase.units)
+    new_portfolio_fund = Portfolio(user_id=purchase.user_id, fund_id=new_fund.id, amount=purchase.amount)
+    new_portfolio_fund.units = new_portfolio_fund.amount / new_fund.latest_nav
     session.add(new_portfolio_fund)
     await session.commit()
 
-    return {"message": f"Added {purchase.units} units to {fund_name}"}
+    return {"message": f"Added {new_portfolio_fund.units} units to {fund_name}"}
